@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pubquiz Bonusrunde</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Animations */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.3s ease-in-out; }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Disable text selection for better mobile app feel */
+        body {
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        /* Toast hidden state */
+        .toast-hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-20px);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans antialiased pb-12">
+
+    <!-- Header -->
+    <header class="bg-gray-800 shadow-md p-4 text-center border-b border-gray-700 sticky top-0 z-10">
+        <h1 class="text-2xl font-bold text-amber-400">🍺 Bonusrunde</h1>
+        <div id="progress-text" class="text-sm text-gray-400 mt-1 hidden">Runde <span id="current-round-num">1</span> von 5</div>
+    </header>
+
+    <!-- Main Container -->
+    <main id="app" class="max-w-lg mx-auto p-4 mt-4 fade-in">
+        <!-- Content will be injected here by JavaScript -->
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded shadow-lg text-white font-bold transition-all duration-300 z-50 toast-hidden">
+        Message
+    </div>
+
+    <script>
+        // --- Data & Configuration ---
+        const introText = "Willkommen zur heutigen Bonusfrage. Wenn du alle Fragen hier korrekt beantwortest erhältst du einen Code. Trage den auf dem Antwortzettel der letzten Runde ein. Dafür erhaltet ihr einen Bonuspunkt.";
+        const endCode = "1337-QU1Z-h4x0r";
+
+        const rounds = [
+            {
+                type: 'sort',
+                title: 'Runde 1: Hoch hinaus',
+                instruction: 'Sortiere die Gebäude nach ihrer Höhe <strong>aufsteigend</strong> (das kleinste Gebäude ganz oben, das höchste ganz unten).',
+                orderType: 'asc', // ascending
+                items: [
+                    { id: 1, text: 'Pyramide von Gizeh', val: 139 },
+                    { id: 2, text: 'Eiffelturm', val: 330 },
+                    { id: 3, text: 'Berliner Fernsehturm', val: 368 },
+                    { id: 4, text: 'Empire State Building', val: 443 },
+                    { id: 5, text: 'Burj Khalifa', val: 828 }
+                ]
+            },
+            {
+                type: 'sort',
+                title: 'Runde 2: Giganten der Erde',
+                instruction: 'Sortiere die Länder nach ihrer Fläche <strong>absteigend</strong> (das größte Land ganz oben, das kleinste ganz unten).',
+                orderType: 'desc', // descending
+                items: [
+                    { id: 1, text: 'Russland', val: 17098242 },
+                    { id: 2, text: 'Kanada', val: 9984670 },
+                    { id: 3, text: 'Brasilien', val: 8515767 },
+                    { id: 4, text: 'Australien', val: 7692024 },
+                    { id: 5, text: 'Indien', val: 3287263 }
+                ]
+            },
+            {
+                type: 'sort',
+                title: 'Runde 3: Urbaner Dschungel',
+                instruction: 'Sortiere diese Metropolen nach ihrer Einwohnerzahl (Stadtgebiet/Metropolregion) <strong>aufsteigend</strong> (wenigste oben, meiste unten).',
+                orderType: 'asc',
+                items: [
+                    { id: 1, text: 'München', val: 1.5 },
+                    { id: 2, text: 'Berlin', val: 3.8 },
+                    { id: 3, text: 'New York', val: 8.5 },
+                    { id: 4, text: 'Istanbul', val: 15.4 },
+                    { id: 5, text: 'Tokio', val: 37.3 }
+                ]
+            },
+            {
+                type: 'match',
+                title: 'Runde 4: Wer bin ich?',
+                instruction: 'Finde die passenden Paare! Tippe einen Vornamen und den passenden Nachnamen (Politiker & Schauspieler) an.',
+                pairs: [
+                    { id: 1, left: 'Angela', right: 'Merkel' },
+                    { id: 2, left: 'Olaf', right: 'Scholz' },
+                    { id: 3, left: 'Joe', right: 'Biden' },
+                    { id: 4, left: 'Emmanuel', right: 'Macron' },
+                    { id: 5, left: 'Winston', right: 'Churchill' },
+                    { id: 6, left: 'Leonardo', right: 'DiCaprio' },
+                    { id: 7, left: 'Meryl', right: 'Streep' },
+                    { id: 8, left: 'Tom', right: 'Hanks' },
+                    { id: 9, left: 'Scarlett', right: 'Johansson' },
+                    { id: 10, left: 'Brad', right: 'Pitt' }
+                ]
+            },
+            {
+                type: 'match',
+                title: 'Runde 5: Jukebox',
+                instruction: 'Welcher Künstler singt welchen Song? Bilde die korrekten Paare.',
+                pairs: [
+                    { id: 1, left: 'Bohemian Rhapsody', right: 'Queen' },
+                    { id: 2, left: 'Billie Jean', right: 'Michael Jackson' },
+                    { id: 3, left: 'Shape of You', right: 'Ed Sheeran' },
+                    { id: 4, left: 'Rolling in the Deep', right: 'Adele' },
+                    { id: 5, left: 'Atemlos', right: 'Helene Fischer' },
+                    { id: 6, left: 'Smells Like Teen Spirit', right: 'Nirvana' },
+                    { id: 7, left: '99 Luftballons', right: 'Nena' },
+                    { id: 8, left: 'Dancing Queen', right: 'ABBA' },
+                    { id: 9, left: 'My Heart Will Go On', right: 'Celine Dion' },
+                    { id: 10, left: 'Lose Yourself', right: 'Eminem' }
+                ]
+            }
+        ];
+
+        // --- State ---
+        let currentStage = -1; // -1: Intro, 0-4: Rounds, 5: End
+        let activeSortItems = [];
+        let matchState = {
+            leftCol: [],
+            rightCol: [],
+            selectedLeft: null,
+            selectedRight: null,
+            matchedIds: []
+        };
+
+        // --- Utility Functions ---
+        function shuffleArray(array) {
+            let curId = array.length;
+            while (0 !== curId) {
+                let randId = Math.floor(Math.random() * curId);
+                curId -= 1;
+                let tmp = array[curId];
+                array[curId] = array[randId];
+                array[randId] = tmp;
+            }
+            return array;
+        }
+
+        function showToast(message, type = 'error') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `fixed top-20 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded shadow-lg text-white font-bold transition-all duration-300 z-50 ${
+                type === 'error' ? 'bg-red-600' : 'bg-green-600'
+            }`;
+            
+            setTimeout(() => {
+                toast.classList.add('toast-hidden');
+            }, 2500);
+        }
+
+        const appDiv = document.getElementById('app');
+        const progressText = document.getElementById('progress-text');
+        const currentRoundNum = document.getElementById('current-round-num');
+
+        // --- Render Functions ---
+
+        function renderIntro() {
+            progressText.classList.add('hidden');
+            appDiv.innerHTML = `
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg text-center border border-gray-700">
+                    <div class="text-5xl mb-4">🤫</div>
+                    <h2 class="text-2xl font-bold mb-4 text-amber-400">Pst... Zusatzpunkte!</h2>
+                    <p class="text-gray-300 leading-relaxed mb-8 text-left">
+                        ${introText}
+                    </p>
+                    <button onclick="nextStage()" class="w-full bg-amber-500 hover:bg-amber-600 text-gray-900 font-bold py-4 px-6 rounded-lg text-xl transition-colors shadow-lg active:scale-95">
+                        Let's Go! 🚀
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderSortRound(roundData) {
+            progressText.classList.remove('hidden');
+            currentRoundNum.textContent = currentStage + 1;
+
+            // Initialize and optionally shuffle data if not done yet
+            if (activeSortItems.length === 0) {
+                // clone and shuffle until it's NOT the correct order to begin with
+                let isCorrect = true;
+                while (isCorrect) {
+                    activeSortItems = shuffleArray([...roundData.items]);
+                    isCorrect = checkSortCorrectness(roundData, activeSortItems, false);
+                }
+            }
+
+            let listHtml = activeSortItems.map((item, index) => `
+                <div class="bg-gray-700 p-3 rounded-lg flex justify-between items-center mb-2 border border-gray-600">
+                    <div class="flex items-center">
+                        <span class="w-8 h-8 rounded-full bg-gray-900 text-amber-400 flex items-center justify-center font-bold mr-3 shadow-inner">
+                            ${index + 1}
+                        </span>
+                        <span class="font-medium text-lg">${item.text}</span>
+                    </div>
+                    <div class="flex flex-col space-y-1">
+                        <button onclick="moveItem(${index}, -1)" class="p-2 bg-gray-600 hover:bg-gray-500 rounded active:bg-amber-500 transition-colors ${index === 0 ? 'opacity-30 pointer-events-none' : ''}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                        </button>
+                        <button onclick="moveItem(${index}, 1)" class="p-2 bg-gray-600 hover:bg-gray-500 rounded active:bg-amber-500 transition-colors ${index === activeSortItems.length - 1 ? 'opacity-30 pointer-events-none' : ''}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            appDiv.innerHTML = `
+                <div class="fade-in">
+                    <h2 class="text-xl font-bold mb-2 text-amber-400">${roundData.title}</h2>
+                    <p class="text-gray-300 mb-6 text-sm bg-gray-800 p-3 rounded border border-gray-700">
+                        ${roundData.instruction}
+                    </p>
+                    <div class="mb-8" id="sort-list">
+                        ${listHtml}
+                    </div>
+                    <button onclick="validateSort()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg text-xl transition-colors shadow-lg active:scale-95">
+                        Prüfen ✓
+                    </button>
+                </div>
+            `;
+        }
+
+        function moveItem(index, direction) {
+            if (index + direction < 0 || index + direction >= activeSortItems.length) return;
+            const temp = activeSortItems[index];
+            activeSortItems[index] = activeSortItems[index + direction];
+            activeSortItems[index + direction] = temp;
+            renderSortRound(rounds[currentStage]); // Re-render
+        }
+
+        function checkSortCorrectness(roundData, currentItems, showMessage = true) {
+            const isAsc = roundData.orderType === 'asc';
+            let correct = true;
+            for (let i = 0; i < currentItems.length - 1; i++) {
+                if (isAsc) {
+                    if (currentItems[i].val > currentItems[i+1].val) correct = false;
+                } else {
+                    if (currentItems[i].val < currentItems[i+1].val) correct = false;
+                }
+            }
+            return correct;
+        }
+
+        function validateSort() {
+            const roundData = rounds[currentStage];
+            if (checkSortCorrectness(roundData, activeSortItems)) {
+                showToast('Korrekt! Sehr gut.', 'success');
+                setTimeout(() => nextStage(), 1000);
+            } else {
+                showToast('Leider falsch. Versuch es nochmal!', 'error');
+                const list = document.getElementById('sort-list');
+                list.classList.add('shake');
+                setTimeout(() => list.classList.remove('shake'), 300);
+            }
+        }
+
+        function renderMatchRound(roundData) {
+            progressText.classList.remove('hidden');
+            currentRoundNum.textContent = currentStage + 1;
+
+            if (matchState.leftCol.length === 0) {
+                // Initialize
+                matchState.leftCol = shuffleArray(roundData.pairs.map(p => ({ id: p.id, text: p.left })));
+                matchState.rightCol = shuffleArray(roundData.pairs.map(p => ({ id: p.id, text: p.right })));
+                matchState.selectedLeft = null;
+                matchState.selectedRight = null;
+                matchState.matchedIds = [];
+            }
+
+            const createBtn = (item, side) => {
+                const isMatched = matchState.matchedIds.includes(item.id);
+                const isSelected = (side === 'left' && matchState.selectedLeft === item.id) || 
+                                   (side === 'right' && matchState.selectedRight === item.id);
+                
+                let baseClass = "p-3 rounded-lg text-sm font-medium w-full text-center border-2 transition-all duration-200 active:scale-95 flex items-center justify-center min-h-[3.5rem] leading-tight ";
+                
+                if (isMatched) {
+                    baseClass += "bg-green-800 border-green-700 text-green-200 opacity-50 cursor-not-allowed";
+                } else if (isSelected) {
+                    baseClass += "bg-amber-500 border-amber-400 text-gray-900 shadow-[0_0_15px_rgba(251,191,36,0.5)]";
+                } else {
+                    baseClass += side === 'left' 
+                        ? "bg-indigo-900 border-indigo-700 hover:bg-indigo-800" 
+                        : "bg-purple-900 border-purple-700 hover:bg-purple-800";
+                }
+
+                return `<button ${isMatched ? 'disabled' : ''} 
+                            onclick="selectMatchItem('${side}', ${item.id})" 
+                            class="${baseClass}">
+                            ${item.text}
+                        </button>`;
+            };
+
+            const leftHtml = matchState.leftCol.map(item => createBtn(item, 'left')).join('');
+            const rightHtml = matchState.rightCol.map(item => createBtn(item, 'right')).join('');
+
+            appDiv.innerHTML = `
+                <div class="fade-in">
+                    <h2 class="text-xl font-bold mb-2 text-amber-400">${roundData.title}</h2>
+                    <p class="text-gray-300 mb-4 text-sm bg-gray-800 p-3 rounded border border-gray-700">
+                        ${roundData.instruction}<br>
+                        <span class="text-amber-500 font-bold block mt-1">Gefunden: ${matchState.matchedIds.length} / ${roundData.pairs.length}</span>
+                    </p>
+                    
+                    <div class="grid grid-cols-2 gap-3 mb-6" id="match-grid">
+                        <div class="flex flex-col space-y-2">
+                            ${leftHtml}
+                        </div>
+                        <div class="flex flex-col space-y-2">
+                            ${rightHtml}
+                        </div>
+                    </div>
+                    
+                    ${matchState.matchedIds.length === roundData.pairs.length ? `
+                        <button onclick="nextStage()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg text-xl transition-colors shadow-lg active:scale-95 fade-in mb-6">
+                            Weiter ✓
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function selectMatchItem(side, id) {
+            if (side === 'left') {
+                matchState.selectedLeft = matchState.selectedLeft === id ? null : id; // toggle
+            } else {
+                matchState.selectedRight = matchState.selectedRight === id ? null : id;
+            }
+
+            renderMatchRound(rounds[currentStage]); // Re-render to show selection
+
+            // Check match if both selected
+            if (matchState.selectedLeft !== null && matchState.selectedRight !== null) {
+                setTimeout(() => {
+                    if (matchState.selectedLeft === matchState.selectedRight) {
+                        // Match!
+                        matchState.matchedIds.push(matchState.selectedLeft);
+                        matchState.selectedLeft = null;
+                        matchState.selectedRight = null;
+                        renderMatchRound(rounds[currentStage]);
+                        
+                        if(matchState.matchedIds.length === rounds[currentStage].pairs.length) {
+                            showToast('Alle Paare gefunden!', 'success');
+                            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                        }
+                    } else {
+                        // Mismatch
+                        const grid = document.getElementById('match-grid');
+                        grid.classList.add('shake');
+                        setTimeout(() => grid.classList.remove('shake'), 300);
+                        matchState.selectedLeft = null;
+                        matchState.selectedRight = null;
+                        renderMatchRound(rounds[currentStage]);
+                    }
+                }, 150); // slight delay for visual feedback of the second selection
+            }
+        }
+
+        function renderEnd() {
+            progressText.classList.add('hidden');
+            appDiv.innerHTML = `
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg text-center border border-gray-700 fade-in">
+                    <div class="text-6xl mb-4">🏆</div>
+                    <h2 class="text-2xl font-bold mb-2 text-amber-400">Geschafft!</h2>
+                    <p class="text-gray-300 mb-6">
+                        Herzlichen Glückwunsch! Euer Team hat alle Bonusaufgaben gemeistert.
+                        Tragt den folgenden Code auf eurem aktuellen Antwortzettel ein, um euren Bonuspunkt einzufordern:
+                    </p>
+                    
+                    <div class="bg-gray-900 border-2 border-dashed border-amber-500 rounded-lg p-6 mb-6">
+                        <span class="font-mono text-3xl text-amber-400 tracking-wider font-bold">${endCode}</span>
+                    </div>
+                    
+                    <p class="text-sm text-gray-500">
+                        Zeigt diesen Code dem Quizmaster oder schreibt ihn deutlich lesbar auf den Zettel. Viel Erfolg weiterhin!
+                    </p>
+                </div>
+            `;
+        }
+
+        // --- Flow Control ---
+        function nextStage() {
+            currentStage++;
+            
+            // Reset active states for new round
+            activeSortItems = [];
+            matchState = { leftCol: [], rightCol: [], selectedLeft: null, selectedRight: null, matchedIds: [] };
+
+            if (currentStage === -1) {
+                renderIntro();
+            } else if (currentStage < rounds.length) {
+                const round = rounds[currentStage];
+                if (round.type === 'sort') {
+                    renderSortRound(round);
+                } else if (round.type === 'match') {
+                    renderMatchRound(round);
+                }
+            } else {
+                renderEnd();
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- Initialization ---
+        nextStage(); // Starts at Intro (-1 becomes 0? No, wait. initial is -1, nextStage makes it 0. Let's fix that.)
+        
+        // Fix initial load
+        currentStage = -2; 
+        nextStage(); // Now sets it to -1 (Intro)
+
+    </script>
+</body>
+</html>
